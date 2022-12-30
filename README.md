@@ -1,2 +1,2 @@
 # InQuest
-Accelerating Aggregation Queries on Unstructured Streams of Data (VLDB 23)
+Accelerating Aggregation Queries on Unstructured Streams of Data
