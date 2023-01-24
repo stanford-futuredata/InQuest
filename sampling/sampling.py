@@ -136,7 +136,7 @@ class StaticSampling(BaseSampling):
         # initialize counts
         self.counts = [[0 for _ in range(self.num_strata)] for _ in range(self.num_segments)]
 
-        # initialize dynamic strata budgets
+        # initialize strata budgets
         self.samples_per_strata = [[0 for _ in range(self.num_strata)] for _ in range(self.num_segments)]
 
         # evenly distribute samples for all segments
@@ -272,10 +272,9 @@ class StaticSampling(BaseSampling):
         self.sampling(strata_idx, oracle_pred, oracle_matches_predicate, segment, frame)
 
 
-class DynamicSampling(BaseSampling):
+class InQuestSampling(BaseSampling):
     """
-    A basic sampling approach that uses a warm-up phase followed by sampling according
-    to the estimated optimal sampling allocation.
+    Sampling according to the InQuest algorithm.
     """
 
     def __init__(

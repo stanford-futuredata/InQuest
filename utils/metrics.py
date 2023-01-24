@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def compute_metrics(prediction, targets, config, aggregation_fcn=None):
+def compute_metrics(prediction, targets, config, oracle_limit, aggregation_fcn):
     """
     This function takes in a prediction or list of predictions and a target
     or list of targets and computes a set of metrics that we use to evaluate
@@ -39,6 +39,7 @@ def compute_metrics(prediction, targets, config, aggregation_fcn=None):
         "l2_error": (prediction - target)**2,
         "prediction": prediction,
         "target": target,
+        "oracle_limit": oracle_limit,
     }
 
     return results

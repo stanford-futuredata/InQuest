@@ -1,7 +1,7 @@
 from oracle.oracle import Oracle
 from proxy.proxy import OracleProxy, PrecomputedProxy, RandomProxy, RandomIntervalProxy
 from query.query import AggregationQuery
-from sampling.sampling import DynamicSampling, StaticSampling, UniformSampling
+from sampling.sampling import InQuestSampling, StaticSampling, UniformSampling
 from statistics.statistics import at_least_one, count, windowed_fcn
 from utils.io import write_json
 from utils.metrics import compute_metrics
@@ -135,8 +135,8 @@ def construct_sampling_strategy(sampling_config, query, agg_config):
             query,
         )
     
-    elif sampling_config['strategy'] == "dynamic":
-        sampling_strategy = DynamicSampling(
+    elif sampling_config['strategy'] == "inquest":
+        sampling_strategy = InQuestSampling(
             sampling_config['num_strata'],
             sampling_config['num_segments'],
             query,
@@ -204,6 +204,7 @@ def run_experiment(config_and_data: Tuple[int, dict, pd.DataFrame, pd.DataFrame]
 
     # get oracle_idx from trial_idx
     oracle_idx = trial_idx // config['trials_per_oracle_limit']
+    oracle_limit = config['query']['oracle_limit'][oracle_idx]
 
     # construct core elements of AQP
     query = construct_query(config['query'], oracle_idx)
@@ -225,15 +226,15 @@ def run_experiment(config_and_data: Tuple[int, dict, pd.DataFrame, pd.DataFrame]
         sampling_strategy.sample(proxy_val, oracle_pred, oracle_matches_predicate, frame)
 
     # compute prediction
-    prediction = sampling_strategy.compute_prediction(trial_idx)  # (trial_idx)
+    prediction = sampling_strategy.compute_prediction(trial_idx)
 
     # compute metrics given the prediction(s) and target(s); aggregation_fcn is None for selection queries
-    results = compute_metrics(prediction, targets, config, aggregation_fcn)
+    results = compute_metrics(prediction, targets, config, oracle_limit, aggregation_fcn)
 
     return results
 
 
-def simulator(config_filepath, results_dir, num_trials, num_processes, alpha, num_segments):
+def simulator(config_filepath, results_dir, trials_per_oracle_limit, num_processes, alpha, num_segments):
     """
     Entrypoint for running the simulator.
     """
@@ -242,13 +243,16 @@ def simulator(config_filepath, results_dir, num_trials, num_processes, alpha, nu
     with open(config_filepath, 'r') as f:
         config = json.load(f)
 
-    # override alpha and num segments if necessary
+    # override alpha, num segments, and trials per oracle limit if necessary
     if alpha is not None:
         config['sampling']['strata_ewm_alpha'] = alpha
         config['sampling']['alloc_ewm_alpha'] = alpha
 
     if num_segments is not None:
         config['sampling']['num_segments'] = num_segments
+
+    if trials_per_oracle_limit is not None and trials_per_oracle_limit > 0:
+        config['trials_per_oracle_limit'] = trials_per_oracle_limit
 
     # read and filter oracle dataframe as this is an expensive operation
     oracle_df = (
@@ -279,8 +283,6 @@ def simulator(config_filepath, results_dir, num_trials, num_processes, alpha, nu
 
         query_filter = f"({start_frame} <= frame) & (frame <= {end_frame})"
         proxy_df = proxy_df.query(query_filter)
-        if 'proxy' not in proxy_df.columns:
-            proxy_df['proxy'] = proxy_df['car_count_1'] + proxy_df['car_count_2'] + proxy_df['car_count_3']
 
     # if subsampling is specified, subsample dataframes
     if "subsample" in config['sampling']:
@@ -289,6 +291,7 @@ def simulator(config_filepath, results_dir, num_trials, num_processes, alpha, nu
         proxy_df = proxy_df.iloc[::step_size]
 
     # run experiment(s)
+    num_trials = config['trials_per_oracle_limit'] * len(config['query']['oracle_limit'])
     results = []
     with Pool(processes=num_processes) as pool:
         results = list(tqdm(pool.imap(
@@ -307,17 +310,23 @@ def simulator(config_filepath, results_dir, num_trials, num_processes, alpha, nu
     results_df.to_csv(f"{os.path.join(results_dir, f'results_{ts}.csv')}")
     write_json(config, ts, local=True, results_dir=results_dir)
 
+    # print out mean rmse at each oracle limit
+    results_df['rmse'] = results_df.l2_error.apply(lambda err: np.sqrt(err))
+    for oracle_limit in config['query']['oracle_limit']:
+        mean_rmse_error = results_df[results_df.oracle_limit == oracle_limit].rmse.mean()
+        print(f"  oracle limit {oracle_limit:4d} mean rmse error: {mean_rmse_error}")
+
 
 if __name__ == "__main__":
     # parse input argument which should specify a path to a configuration file
     parser = argparse.ArgumentParser()
     parser.add_argument("config_filepath", help="path to configuration file", type=str)
     parser.add_argument("--results-dir", help="local directory for storing experiment results", type=str, default="results/")
-    parser.add_argument("--num-trials", help="number of trials to run", type=int, default=8)
-    parser.add_argument("--num-processes", help="number of processes to use", type=int, default=8)
+    parser.add_argument("--trials-per-oracle-limit", help="override config number of trials per oracle limit", type=int, default=None)
+    parser.add_argument("--num-processes", help="number of processes to use", type=int, default=48)
     parser.add_argument("--alpha", help="smoothing parameter for EWMA", type=float, default=None)
     parser.add_argument("--segments", help="number of segments to use", type=int, default=None)
     args = parser.parse_args()
 
     # run simulator
-    simulator(args.config_filepath, args.results_dir, args.num_trials, args.num_processes, args.alpha, args.segments)
+    simulator(args.config_filepath, args.results_dir, args.trials_per_oracle_limit, args.num_processes, args.alpha, args.segments)
