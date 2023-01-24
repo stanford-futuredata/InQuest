@@ -1,0 +1,20 @@
+# AWS credentials
+*.pem
+aws-secret.yaml
+
+# virtual environment
+venv/
+
+# Mac OS files
+.DS_Store
+
+# pycache
+__pycache__/
+
+# analysis and results
+_results/
+
+# directory containing CSVs and raw video files for datasets
+simulator/datasets/full-csv/*
+simulator/datasets/raw-data/*
+simulator/datasets/precomputed/*
