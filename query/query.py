@@ -1,6 +1,5 @@
 from abc import ABC
 
-from typing import Union
 
 class BaseQuery(ABC):
     """
@@ -23,21 +22,6 @@ class BaseQuery(ABC):
         return self.start_frame + self.time_limit
 
 
-class SelectionQuery(BaseQuery):
-    """
-    A class definition for selection queries.
-    """
-
-    def __init__(self, query_config):
-        """
-        Initialize query features for selection queries.
-        """
-        # initialize base features
-        super().__init__(query_config)
-
-        # self.limit = query_config['limit'] if 'limit' in query_config else None
-
-
 class AggregationQuery(BaseQuery):
     """
     A class definition for aggregation queries.
@@ -52,6 +36,3 @@ class AggregationQuery(BaseQuery):
 
         # override oracle_limit
         self.oracle_limit = query_config['oracle_limit'][oracle_idx]
-
-# create a generic query type
-QueryType = Union[SelectionQuery, AggregationQuery]

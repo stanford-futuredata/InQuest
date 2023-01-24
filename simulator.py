@@ -1,21 +1,7 @@
-from oracle.oracle import (
-    Oracle,
-    ProbTransitionOracle,
-    RandomOracle,
-    UniformOracle,
-)
+from oracle.oracle import Oracle
 from proxy.proxy import OracleProxy, PrecomputedProxy, RandomProxy, RandomIntervalProxy
-from query.query import AggregationQuery, SelectionQuery
-from sampling.sampling import (
-    ABaeSampling,
-    ProxyPassThroughSampling,
-    ProxyThresholdSampling,
-    RandomSampling,
-    DynamicSampling,
-    StaticSampling,
-    StreamApproxSampling,
-    UniformSampling,
-)
+from query.query import AggregationQuery
+from sampling.sampling import DynamicSampling, StaticSampling, UniformSampling
 from statistics.statistics import at_least_one, count, windowed_fcn
 from utils.io import write_json
 from utils.metrics import compute_metrics
@@ -35,22 +21,12 @@ import os
 import random
 import time
 
-# definitions
-AMSTERDAM_04_12_PROXY_OFFSET = 150
-
 
 def construct_query(query_config, oracle_idx):
     """
     Construct the query class from the specified configuration.
     """
-    query = None
-    if query_config['type'] == "selection":
-        query = SelectionQuery(query_config)
-
-    elif query_config['type'] == "aggregation":
-        query = AggregationQuery(query_config, oracle_idx)
-
-    return query
+    return AggregationQuery(query_config, oracle_idx)
 
 
 def construct_statistic_fcn(statistic_config):
@@ -89,9 +65,6 @@ def construct_aggregation_fcn(aggregation_config):
     elif aggregation_config['function'] == "median":
         aggregation_fcn = np.median
 
-    elif aggregation_config['function'] == "max":
-        aggregation_fcn = np.max
-
     elif aggregation_config['function'] == "window":
         aggregation_fcn = partial(
             windowed_fcn,
@@ -106,38 +79,8 @@ def construct_oracle(oracle_config, oracle_df, query, statistic_fcn):
     """
     Construct the oracle class from the specified configuration.
     """
-    oracle = None
-    if oracle_config['strategy'] == "oracle":
-        oracle = Oracle(
-            oracle_df,
-            query,
-            statistic_fcn,
-        )
 
-    elif oracle_config['strategy'] == "uniform":
-        oracle = UniformOracle(
-            oracle_df,
-            query,
-            statistic_fcn,
-        )
-
-    elif oracle_config['strategy'] == "random":
-        oracle = RandomOracle(
-            oracle_df,
-            query,
-            statistic_fcn,
-        )
-
-    elif oracle_config['strategy'] == "prob_transition":
-        oracle = ProbTransitionOracle(
-            oracle_df, query, statistic_fcn,
-            oracle_config['threshold'],
-            oracle_config['difference'] == "true",
-            oracle_config['greedy'] == "true",
-            oracle_config['samples_per_bucket'],
-        )
-
-    return oracle
+    return Oracle(oracle_df, query, statistic_fcn)
 
 
 def construct_proxy(proxy_config, proxy_df, oracle_df, statistic_fcn, statistic_fcn_name):
@@ -182,16 +125,8 @@ def construct_sampling_strategy(sampling_config, query, agg_config):
     Construct the oracle sampler class from the specified configuration.
     """
     sampling_strategy = None
-    if sampling_config['strategy'] == "abae_streaming":
-        sampling_strategy = ABaeSampling(
-            sampling_config['strata'],
-            sampling_config['prior'],
-            query.oracle_limit,
-            query,
-            sampling_config['alpha'],
-            sampling_config['warmup_frac'],
-            sampling_config['epsilon'],
-        )
+    if sampling_config['strategy'] == "uniform":
+        sampling_strategy = UniformSampling(query, sampling_config, agg_config)
 
     elif sampling_config['strategy'] == "static":
         sampling_strategy = StaticSampling(
@@ -253,31 +188,6 @@ def construct_sampling_strategy(sampling_config, query, agg_config):
             ),
         )
 
-    elif sampling_config['strategy'] == "stream_approx":
-        sampling_strategy = StreamApproxSampling(
-            sampling_config['strata'],
-            sampling_config['prior'],
-            query.oracle_limit,
-            query,
-            agg_config,
-        )
-
-    elif sampling_config['strategy'] == "uniform":
-        sampling_strategy = UniformSampling(query, sampling_config, agg_config)
-
-    elif sampling_config['strategy'] == "random":
-        sampling_strategy = RandomSampling(
-            sampling_config['sampling_strategy_prob'],
-        )
-
-    elif sampling_config['strategy'] == "proxy_threshold":
-        sampling_strategy = ProxyThresholdSampling(
-            sampling_config['sampling_strategy_proxy_prob_threshold'],
-        )
-
-    elif sampling_config['strategy'] == "proxy_pass_through":
-        sampling_strategy = ProxyPassThroughSampling()
-
     return sampling_strategy
 
 
@@ -285,9 +195,6 @@ def run_experiment(config_and_data: Tuple[int, dict, pd.DataFrame, pd.DataFrame]
     """
     Simulate processing a query over a dataset given oracle and proxy values.
     """
-    # # set random seed
-    # random.seed(time.time())
-
     # unpack 
     trial_idx, config, oracle_df, proxy_df = config_and_data
 
@@ -315,18 +222,6 @@ def run_experiment(config_and_data: Tuple[int, dict, pd.DataFrame, pd.DataFrame]
         if oracle_matches_predicate:
             targets.append(oracle_pred)
 
-        ### TODO: handle queries that require result at end of window vs. queries that require result at end of query
-        ###       - basically handle windowed and non-windowed queries separately
-
-        # proxy_val = (
-        #     proxy_pred_to_prob[0]
-        #     if proxy_pred == 0
-        #     else proxy_pred_to_prob[1] + proxy_pred_to_prob[2]
-        # )
-        
-        # TODO uncomment: proxy_val = proxy_pred_to_prob[1] + proxy_pred_to_prob[2]
-        # proxy_val = proxy_pred_to_prob[0]
-        # proxy_val = proxy_pred
         sampling_strategy.sample(proxy_val, oracle_pred, oracle_matches_predicate, frame)
 
     # compute prediction
@@ -363,12 +258,13 @@ def simulator(config_filepath, results_dir, num_trials, num_processes, alpha, nu
     )
     if config['oracle']['frame_col'] == "false":
         oracle_df['frame'] = np.arange(oracle_df.shape[0])
+
     start_frame = config['query']['start_frame']
     end_frame = start_frame + config['query']['time_limit']
     query_filter = f"({start_frame} <= frame) & (frame <= {end_frame})"
     oracle_df = oracle_df.query(query_filter)
 
-    # read and filter proxy dataframe (if using precomputed proxy values) as this is an expensive operation
+    # read and filter proxy dataframe as this is an expensive operation
     proxy_df = None
     if config['proxy']['model'] == "precomputed":
         proxy_df = (
@@ -393,8 +289,6 @@ def simulator(config_filepath, results_dir, num_trials, num_processes, alpha, nu
         proxy_df = proxy_df.iloc[::step_size]
 
     # run experiment(s)
-    # num_oracle_limits = len(config['query']['oracle_limit'])
-    # total_trials = num_oracle_limits * 10
     results = []
     with Pool(processes=num_processes) as pool:
         results = list(tqdm(pool.imap(
@@ -407,7 +301,7 @@ def simulator(config_filepath, results_dir, num_trials, num_processes, alpha, nu
     # construct full dataframe of results
     results_df = pd.DataFrame(results)
 
-    # save results and configuration locally
+    # save results locally
     ts = datetime.now().timestamp()
     os.makedirs(results_dir, exist_ok=True)
     results_df.to_csv(f"{os.path.join(results_dir, f'results_{ts}.csv')}")
@@ -421,7 +315,6 @@ if __name__ == "__main__":
     parser.add_argument("--results-dir", help="local directory for storing experiment results", type=str, default="results/")
     parser.add_argument("--num-trials", help="number of trials to run", type=int, default=8)
     parser.add_argument("--num-processes", help="number of processes to use", type=int, default=8)
-    parser.add_argument("--random-seed", help="set the seed for all randomness", type=int, default=None)
     parser.add_argument("--alpha", help="smoothing parameter for EWMA", type=float, default=None)
     parser.add_argument("--segments", help="number of segments to use", type=int, default=None)
     args = parser.parse_args()
