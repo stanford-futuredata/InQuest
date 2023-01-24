@@ -1,18 +1,27 @@
 {
     "oracle": {
         "strategy": "oracle",
-        "oracle_csv": "datasets/final-precomputed/amsterdam-car-2017-04-12-true.csv",
+        "oracle_csv": "datasets/final-precomputed/jackson-town-square-2017-12-17-true.csv",
         "columns": ["car_count"],
         "frame_col": "false"
     },
     "proxy": {
         "model": "precomputed",
-        "proxy_csv": "datasets/final-precomputed/amsterdam-car-2017-04-12-blazeit-prob.csv",
+        "proxy_csv": "datasets/final-precomputed/jackson-town-square-2017-12-17-blazeit-prob.csv",
         "columns": ["proxy"],
         "frame_col": "false"
     },
     "sampling": {
-        "strategy": "uniform",
+        "strategy": "inquest",
+        "num_strata": 3,
+        "num_segments": 5,
+        "defensive": "true",
+        "defensive_frac": 0.1,
+        "pilot_sample_frac": 0.1,
+        "pilot_query_frac": 0.1,
+        "strata_ewm_alpha": 0.8,
+        "alloc_ewm_alpha": 0.8,
+        "min_strata_gap": 0.001,
         "subsample": 10
     },
     "statistic": {

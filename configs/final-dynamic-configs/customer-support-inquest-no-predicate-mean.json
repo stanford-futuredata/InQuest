@@ -1,18 +1,18 @@
 {
     "oracle": {
         "strategy": "oracle",
-        "oracle_csv": "datasets/final-precomputed/venice-grand-canal-2018-01-20-true.csv",
-        "columns": ["car_count"],
+        "oracle_csv": "datasets/final-precomputed/customer-support-true.csv",
+        "columns": ["sentiment","inbound"],
         "frame_col": "false"
     },
     "proxy": {
         "model": "precomputed",
-        "proxy_csv": "datasets/final-precomputed/venice-grand-canal-2018-01-20-blazeit-prob.csv",
+        "proxy_csv": "datasets/final-precomputed/customer-support-fasttext-prob.csv",
         "columns": ["proxy"],
         "frame_col": "false"
     },
     "sampling": {
-        "strategy": "dynamic",
+        "strategy": "inquest",
         "num_strata": 3,
         "num_segments": 5,
         "defensive": "true",
@@ -26,7 +26,7 @@
     },
     "statistic": {
         "function": "count",
-        "count_col": "car_count"
+        "count_col": "sentiment"
     },
     "aggregation": {
         "function": "mean"

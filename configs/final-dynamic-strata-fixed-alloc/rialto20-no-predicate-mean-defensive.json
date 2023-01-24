@@ -12,7 +12,7 @@
         "frame_col": "false"
     },
     "sampling": {
-        "strategy": "dynamic",
+        "strategy": "inquest",
         "num_strata": 3,
         "num_segments": 5,
         "defensive": "true",

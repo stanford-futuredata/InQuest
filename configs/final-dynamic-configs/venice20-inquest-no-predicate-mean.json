@@ -1,18 +1,18 @@
 {
     "oracle": {
         "strategy": "oracle",
-        "oracle_csv": "datasets/final-precomputed/taipei-hires-car-2017-04-13-true.csv",
+        "oracle_csv": "datasets/final-precomputed/venice-grand-canal-2018-01-20-true.csv",
         "columns": ["car_count"],
         "frame_col": "false"
     },
     "proxy": {
         "model": "precomputed",
-        "proxy_csv": "datasets/final-precomputed/taipei-hires-car-2017-04-13-blazeit-prob.csv",
+        "proxy_csv": "datasets/final-precomputed/venice-grand-canal-2018-01-20-blazeit-prob.csv",
         "columns": ["proxy"],
         "frame_col": "false"
     },
     "sampling": {
-        "strategy": "dynamic",
+        "strategy": "inquest",
         "num_strata": 3,
         "num_segments": 5,
         "defensive": "true",

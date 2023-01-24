@@ -1,18 +1,18 @@
 {
     "oracle": {
         "strategy": "oracle",
-        "oracle_csv": "datasets/final-precomputed/amsterdam-car-2017-04-12-true.csv",
+        "oracle_csv": "datasets/final-precomputed/archie-day-car-2018-04-11-true.csv",
         "columns": ["car_count"],
         "frame_col": "false"
     },
     "proxy": {
         "model": "precomputed",
-        "proxy_csv": "datasets/final-precomputed/amsterdam-car-2017-04-12-blazeit-prob.csv",
+        "proxy_csv": "datasets/final-precomputed/archie-day-car-2018-04-11-blazeit-prob.csv",
         "columns": ["proxy"],
         "frame_col": "false"
     },
     "sampling": {
-        "strategy": "dynamic",
+        "strategy": "inquest",
         "num_strata": 3,
         "num_segments": 5,
         "defensive": "true",
