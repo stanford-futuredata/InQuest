@@ -314,7 +314,7 @@ def simulator(config_filepath, results_dir, trials_per_oracle_limit, num_process
     results_df['rmse'] = results_df.l2_error.apply(lambda err: np.sqrt(err))
     for oracle_limit in config['query']['oracle_limit']:
         mean_rmse_error = results_df[results_df.oracle_limit == oracle_limit].rmse.mean()
-        print(f"  oracle limit {oracle_limit:4d} mean rmse error: {mean_rmse_error}")
+        print(f"  oracle limit {oracle_limit:4d} mean rmse error: {mean_rmse_error:.5f}")
 
 
 if __name__ == "__main__":
