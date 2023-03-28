@@ -21,6 +21,7 @@ simulator/datasets/precomputed/*
 
 # dataset files we don't want to upload
 datasets/final-synthetic/
+datasets/final-synthetic.tar
 datasets/final-synthetic-shift-old/
 datasets/final-synthetic-shift-old.tar
 
