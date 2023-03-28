@@ -21,17 +21,14 @@ def compute_metrics(prediction, targets, config, oracle_limit, aggregation_fcn):
     if agg_config.get('final_agg') == "sum":
         prediction = np.sum(prediction)
         target = np.sum(target)
-    
+
     elif agg_config.get('final_agg') == "mean":
         prediction = np.mean(prediction)
         target = np.mean(target)
-    
+
     elif agg_config.get('final_agg') == "median":
         prediction = np.nanmedian(prediction)
         target = np.nanmedian(target)
-    
-    # get the total number of frames in the query
-    num_preds = config['query']['time_limit'] + 1
 
     # compute L1 and L2 error on aggregation
     results = {
