@@ -19,6 +19,11 @@ simulator/datasets/full-csv/*
 simulator/datasets/raw-data/*
 simulator/datasets/precomputed/*
 
-# results we don't want to upload
+# dataset files we don't want to upload
 datasets/final-synthetic/
 datasets/final-synthetic-shift-old/
+
+# configs we don't want to upload
+configs/final-synthetic-inquest-configs-old/
+configs/final-synthetic-static-configs-old/
+configs/final-synthetic-uniform-configs-old/
