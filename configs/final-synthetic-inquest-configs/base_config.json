@@ -2,7 +2,7 @@
     "oracle": {
         "strategy": "oracle",
         "oracle_csv": "datasets/final-synthetic/true.csv",
-        "columns": ["car_count"],
+        "columns": ["obj_count", "predicate"],
         "frame_col": "false"
     },
     "proxy": {
@@ -12,7 +12,7 @@
         "frame_col": "false"
     },
     "sampling": {
-        "strategy": "dynamic",
+        "strategy": "inquest",
         "num_strata": 3,
         "num_segments": 5,
         "defensive": "true",
@@ -26,7 +26,7 @@
     },
     "statistic": {
         "function": "count",
-        "count_col": "car_count"
+        "count_col": "obj_count"
     },
     "aggregation": {
         "function": "mean"
@@ -36,7 +36,7 @@
         "oracle_limit": [5000],
         "start_frame": 0,
         "time_limit": 500000,
-        "predicate": ""
+        "predicate": "predicate == True"
     },
     "trials_per_oracle_limit": 1000
 }
