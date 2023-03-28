@@ -415,6 +415,9 @@ class InQuestSampling(BaseSampling):
         # keep track of strata computations
         self.computed_strata = []
 
+    def get_segment_end_frames(self):
+        return self.segment_end_frames
+
     def compute_prediction(self, trial_idx):
         """
         Return the predicted answer(s) to the given query.
