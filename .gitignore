@@ -18,3 +18,7 @@ _results/
 simulator/datasets/full-csv/*
 simulator/datasets/raw-data/*
 simulator/datasets/precomputed/*
+
+# results we don't want to upload
+datasets/final-synthetic/
+datasets/final-synthetic-shift-old/
