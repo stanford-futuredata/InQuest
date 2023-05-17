@@ -23,6 +23,12 @@ cd InQuest
 
 # install required Python packages
 pip install -r requirements.txt
+
+# install additional dependencies
+apt install -y wget build-essential r-base
+wget https://cloud.r-project.org/src/contrib/stratification_2.2-7.tar.gz
+R CMD INSTALL stratification_2.2-7.tar.gz
+rm stratification_2.2-7.tar.gz
 ```
 
 ## Run Experiments

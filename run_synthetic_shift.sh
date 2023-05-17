@@ -26,15 +26,15 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-for scale in 1 2 3 4 5
+for num_shifts in 1 2 3 4 5
 do
-    for vec in 1 2 3 4 5 6 7 8 9 10
+    for vec in {0..19}
     do
-        echo "--- uniform scale ${scale} vec ${vec} ---"
-        python simulator.py configs/final-synthetic-uniform-configs/config_scale_${scale}_vec_${vec}.json --trials-per-oracle-limit ${TRIALS_PER_ORACLE_LIMIT} --num-processes ${NUM_PROCESSES} --results-dir results-uniform-scale-${scale}-vec-${vec}
-        echo "--- static scale ${scale} vec ${vec} ---"
-        python simulator.py configs/final-synthetic-static-configs/config_scale_${scale}_vec_${vec}.json --trials-per-oracle-limit ${TRIALS_PER_ORACLE_LIMIT} --num-processes ${NUM_PROCESSES} --segments 4 --results-dir results-static-scale-${scale}-vec-${vec}
-        echo "--- InQuest scale ${scale} vec ${vec} ---"
-        python simulator.py configs/final-synthetic-inquest-configs/config_scale_${scale}_vec_${vec}.json --trials-per-oracle-limit ${TRIALS_PER_ORACLE_LIMIT} --num-processes ${NUM_PROCESSES} --segments 5 --alpha 0.8 --results-dir results-inquest-scale-${scale}-vec-${vec}
+        echo "--- uniform num_shifts ${num_shifts} vec ${vec} ---"
+        python simulator.py configs/final-synthetic-uniform-configs/config_num_shifts_${num_shifts}_vec_${vec}.json --trials-per-oracle-limit ${TRIALS_PER_ORACLE_LIMIT} --num-processes ${NUM_PROCESSES} --results-dir results-uniform-num-shifts-${num_shifts}-vec-${vec} --single-budget True
+        echo "--- static num_shifts ${num_shifts} vec ${vec} ---"
+        python simulator.py configs/final-synthetic-static-configs/config_num_shifts_${num_shifts}_vec_${vec}.json --trials-per-oracle-limit ${TRIALS_PER_ORACLE_LIMIT} --num-processes ${NUM_PROCESSES} --segments 5 --results-dir results-static-num-shifts-${num_shifts}-vec-${vec} --single-budget True
+        echo "--- InQuest num_shifts ${num_shifts} vec ${vec} ---"
+        python simulator.py configs/final-synthetic-inquest-configs/config_num_shifts_${num_shifts}_vec_${vec}.json --trials-per-oracle-limit ${TRIALS_PER_ORACLE_LIMIT} --num-processes ${NUM_PROCESSES} --segments 5 --alpha 0.8 --results-dir results-inquest-num-shifts-${num_shifts}-vec-${vec} --single-budget True
     done
 done

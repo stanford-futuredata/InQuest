@@ -14,7 +14,7 @@
     "sampling": {
         "strategy": "static",
         "num_strata": 3,
-        "num_segments": 4,
+        "num_segments": 5,
         "subsample": 10
     },
     "statistic": {

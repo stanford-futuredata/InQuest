@@ -13,11 +13,11 @@ def print_results(results_df, config) -> None:
     pass
 
 
-def write_json(data, ts, local, results_dir=None):
+def write_json(data, local, results_dir=None):
     """
     Write JSON data to local directory or to s3.
     """
-    filename = f"config_{ts}.json"
+    filename = f"config.json"
 
     # if local is True, write data to local filepath
     if local:

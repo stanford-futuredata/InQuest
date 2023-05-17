@@ -120,13 +120,13 @@ def construct_proxy(proxy_config, proxy_df, oracle_df, statistic_fcn, statistic_
     return proxy
 
 
-def construct_sampling_strategy(sampling_config, query, agg_config):
+def construct_sampling_strategy(sampling_config, query, segment_end_frames, agg_config):
     """
     Construct the oracle sampler class from the specified configuration.
     """
     sampling_strategy = None
     if sampling_config['strategy'] == "uniform":
-        sampling_strategy = UniformSampling(query, sampling_config, agg_config)
+        sampling_strategy = UniformSampling(query, sampling_config, segment_end_frames, agg_config)
 
     elif sampling_config['strategy'] == "static":
         sampling_strategy = StaticSampling(
@@ -212,29 +212,38 @@ def run_experiment(config_and_data: Tuple[int, dict, pd.DataFrame, pd.DataFrame]
     aggregation_fcn = construct_aggregation_fcn(config['aggregation'])
     oracle = construct_oracle(config['oracle'], oracle_df, query, statistic_fcn)
     proxy = construct_proxy(config['proxy'], proxy_df, oracle_df, statistic_fcn, statistic_fcn_name)
-    sampling_strategy = construct_sampling_strategy(config['sampling'], query, config['aggregation'])
+
+    # hard-code end frames for InQuest into uniform sampling strategy for evaluation purposes
+    segment_end_frames = [100000, 200000, 300000, 400000, 500001]
+    sampling_strategy = construct_sampling_strategy(config['sampling'], query, segment_end_frames, config['aggregation'])
 
     # iterate over frames and apply sampling/selection logic
-    proxy_preds, targets = [], []
+    targets, target_frames = [], []
     step = 1 if "subsample" not in config['sampling'] else config['sampling']['subsample']
     for frame in range(query.start_frame, query.end_frame + 1, step):
         proxy_val = proxy.predict(frame)
         oracle_pred, oracle_matches_predicate = oracle.predict(frame)
         if oracle_matches_predicate:
             targets.append(oracle_pred)
+            target_frames.append(frame)
 
         sampling_strategy.sample(proxy_val, oracle_pred, oracle_matches_predicate, frame)
 
     # compute prediction
-    prediction = sampling_strategy.compute_prediction(trial_idx)
+    prediction, segment_predictions = sampling_strategy.compute_prediction(trial_idx)
 
-    # compute metrics given the prediction(s) and target(s); aggregation_fcn is None for selection queries
-    results = compute_metrics(prediction, targets, config, oracle_limit, aggregation_fcn)
+    # compute metrics given the prediction(s) and target(s)
+    if config['sampling']['strategy'] in ["inquest", "static"]:
+        segment_end_frames = sampling_strategy.segment_end_frames
 
-    return results
+    result_dict = compute_metrics(prediction, segment_predictions, targets, target_frames, segment_end_frames, oracle_limit, config, aggregation_fcn)
+    result_dict['trial_idx'] = trial_idx
+    result_dict['strategy'] = config['sampling']['strategy']
+
+    return result_dict
 
 
-def simulator(config_filepath, results_dir, trials_per_oracle_limit, num_processes, alpha, num_segments):
+def simulator(config_filepath, results_dir, trials_per_oracle_limit, num_processes, alpha, num_segments, beta, single_budget):
     """
     Entrypoint for running the simulator.
     """
@@ -243,6 +252,13 @@ def simulator(config_filepath, results_dir, trials_per_oracle_limit, num_process
     with open(config_filepath, 'r') as f:
         config = json.load(f)
 
+    # only run with oracle limit == 5000 for certain analyses
+    if single_budget:
+        print("running with single budget set to True")
+        uniform_config['query']['oracle_limit'] = [5000]
+        static_config['query']['oracle_limit'] = [5000]
+        inquest_config['query']['oracle_limit'] = [5000]
+
     # override alpha, num segments, and trials per oracle limit if necessary
     if alpha is not None:
         config['sampling']['strata_ewm_alpha'] = alpha
@@ -250,6 +266,13 @@ def simulator(config_filepath, results_dir, trials_per_oracle_limit, num_process
 
     if num_segments is not None:
         config['sampling']['num_segments'] = num_segments
+
+    if beta is not None:
+        config['proxy']['beta'] = int(beta)
+
+        proxy_filename = proxy_filename.replace('-blazeit-prob', f'-{int(beta)}-prob').replace('-fasttext-prob', f'-{int(beta)}-prob')
+        oracle_filepath = f"datasets/final-precomputed-proxy-degraded/{oracle_filename}"
+        proxy_filepath = f"datasets/final-precomputed-proxy-degraded/{proxy_filename}"
 
     if trials_per_oracle_limit is not None and trials_per_oracle_limit > 0:
         config['trials_per_oracle_limit'] = trials_per_oracle_limit
@@ -305,15 +328,38 @@ def simulator(config_filepath, results_dir, trials_per_oracle_limit, num_process
     results_df = pd.DataFrame(results)
 
     # save results locally
-    ts = datetime.now().timestamp()
     os.makedirs(results_dir, exist_ok=True)
-    results_df.to_csv(f"{os.path.join(results_dir, f'results_{ts}.csv')}")
     write_json(config, ts, local=True, results_dir=results_dir)
 
-    # print out mean rmse at each oracle limit
-    results_df['rmse'] = results_df.l2_error.apply(lambda err: np.sqrt(err))
+    predicate = "predicate_gt0" if config['query']['predicate'] != "" else "no_predicate"
+    special = ""
+    if "fix_strata" in config['sampling']:
+        special = "-fix-strata"
+    elif "fix_alloc" in config['sampling']:
+        special = "-fix-alloc"
+    elif "beta" in config['proxy']:
+        special = f"-proxy-quality-{config['proxy']['beta']}"
+
+    pilot_str = ""
+    if 'pilot_query_frac' in config['sampling']:
+        pilot_query_frac = config['sampling']['pilot_query_frac']
+        pilot_sample_frac = config['sampling']['pilot_sample_frac']
+        pilot_str = f"-pilot-sample-frac-{pilot_sample_frac}-pilot-query-frac-{pilot_query_frac}"
+
+    results_df.to_csv(f"{os.path.join(results_dir, f'results-{config['sampling']['strategy']}-{predicate}-{dataset_name}{special}-alpha-{alpha}-segments-{num_segments}{pilot_str}.pq')}")
+
+    # compute per-segment median rmse
+    def compute_median_segment_error(row):
+        for segment_idx in range(num_segments):
+            row[f'rmse_segment_{segment_idx}'] = np.sqrt(row[f'l2_error_segment_{segment_idx}'])
+
+        return np.median([row[f'rmse_segment_{segment_idx}'] for segment_idx in range(num_segments)])
+
+    results['median_rmse'] = results_df.compute_median_segment_error(lambda row: compute_median_segment_error, axis=1)
+
+    # print out mean of per-segment median rmse's at each oracle limit
     for oracle_limit in config['query']['oracle_limit']:
-        mean_rmse_error = results_df[results_df.oracle_limit == oracle_limit].rmse.mean()
+        mean_rmse_error = results_df[results_df.oracle_limit == oracle_limit].median_rmse.mean()
         print(f"  oracle limit {oracle_limit:4d} mean rmse error: {mean_rmse_error:.5f}")
 
 
@@ -325,8 +371,10 @@ if __name__ == "__main__":
     parser.add_argument("--trials-per-oracle-limit", help="override config number of trials per oracle limit", type=int, default=None)
     parser.add_argument("--num-processes", help="number of processes to use", type=int, default=48)
     parser.add_argument("--alpha", help="smoothing parameter for EWMA", type=float, default=None)
+    parser.add_argument("--beta", help="used in proxy quality experiments to control quality of proxy", type=float, default=None)
     parser.add_argument("--segments", help="number of segments to use", type=int, default=None)
+    parser.add_argument("--single-budget", help="set to True to only run with 5000 oracle samples", type=bool, default=False)
     args = parser.parse_args()
 
     # run simulator
-    simulator(args.config_filepath, args.results_dir, args.trials_per_oracle_limit, args.num_processes, args.alpha, args.segments)
+    simulator(args.config_filepath, args.results_dir, args.trials_per_oracle_limit, args.num_processes, args.alpha, args.segments, args.beta, args.single_budget)

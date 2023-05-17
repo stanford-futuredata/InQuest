@@ -1,6 +1,7 @@
+boto3
+matplotlib
 numpy
 pandas
-matplotlib
+rpy2
 scipy
-boto3
 tqdm
