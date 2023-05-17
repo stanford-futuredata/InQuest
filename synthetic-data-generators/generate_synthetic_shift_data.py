@@ -3,152 +3,125 @@ import pandas as pd
 
 # DEFINITIONS
 NUM_STRATA = 3
-MAX_FRAME = 500000
-
-STRATA_STD_SCALE_MIN = 0
-STRATA_STD_SCALE_MAX = 9
-STRATA_MEAN_RANGES = [(0,3), (3,6), (6,9)]
-
-NUM_SHIFTS_LIST = [1, 2, 3, 4, 5]
-DATASETS_PER_SHIFT = 20
+BETA = 0.75
+MAX_FRAMES = 500000
 
 
-def sample_stds(ndim=3):
-    # sample vector from unit sphere
-    vec = np.random.rand(ndim)
-    vec /= np.linalg.norm(vec)
+def compute_samples_per_segment_stratum(shift_indices, num_strata):
+    samples_per_segment_stratum = []
+    for segment_idx in range(len(shift_indices) + 1):
+        # compute samples in segment and split them evenly across strata;
+        # later we will use random p_tk's to determine the subset of predicate matching samples
+        total_num_samples = 0
+        if segment_idx == 0:
+            total_num_samples = shift_indices[segment_idx]
+        elif segment_idx == len(shift_indices):
+            total_num_samples = (MAX_FRAMES + 1) - shift_indices[segment_idx-1]
+        else:
+            total_num_samples = shift_indices[segment_idx] - shift_indices[segment_idx - 1]
 
-    # sample scale factor
-    scale_factor = np.random.uniform(low=STRATA_STD_SCALE_MIN, high=STRATA_STD_SCALE_MAX)
+        samples_per_segment_stratum.append([np.floor((1/num_strata) * total_num_samples) for _ in range(num_strata)])
 
-    # return scaled vector
-    return vec * scale_factor
-
-def sample_means(ndim=3):
-    return np.array([
-        np.random.uniform(low=STRATA_MEAN_RANGES[strata_idx][0], high=STRATA_MEAN_RANGES[strata_idx][1])
-        for strata_idx in range(ndim)
-    ])
-
-def sample_pred_rates(ndim):
-    return np.array([np.random.uniform(low=0.0, high=1.0) for _ in range(ndim)])
-
-def compute_samples_per_segment_strata(num_strata, shift_frames):
-    samples_per_segment_strata = []
-    shift_frames_with_final_frame = shift_frames + [MAX_FRAME]
-    for segment_idx, shift_frame in enumerate(shift_frames_with_final_frame):
-        total_num_samples = (
-            shift_frame
-            if segment_idx == 0
-            else shift_frame - shift_frames_with_final_frame[segment_idx - 1]
-        )
-        if shift_frame == MAX_FRAME:
-            total_num_samples += 1
-
-        samples_per_segment_strata.append([np.floor((1/num_strata) * total_num_samples) for _ in range(num_strata)])
-
+        # add back any rounded off samples
         strata_idx = 0
-        while np.sum(samples_per_segment_strata[segment_idx]) < total_num_samples:
-            samples_per_segment_strata[segment_idx][strata_idx] += 1
+        while np.sum(samples_per_segment_stratum[segment_idx]) < total_num_samples:
+            samples_per_segment_stratum[segment_idx][strata_idx] += 1
             strata_idx = (strata_idx + 1) % num_strata
-    
-    return np.array(samples_per_segment_strata)
 
-def interleave(strata_gt_streams, strata_proxy_streams, strata_pred_streams, segment_idx, samples_per_segment_strata, num_strata):
-    gt_stream, proxy_stream, pred_stream = [], [], []
-  
-    for sample in range(int(np.sum(samples_per_segment_strata[segment_idx]))):
+    return np.array(samples_per_segment_stratum)
+
+
+def interleave(strata_gt_streams, strata_proxy_streams, strata_predicate_streams, segment_idx, samples_per_segment_stratum, num_strata):
+    print(f"interleaving segment: {segment_idx}")
+
+    gt_stream, proxy_stream, predicate_stream = [], [], []
+    for sample in range(int(np.sum(samples_per_segment_stratum[segment_idx]))):
         strata_to_sample = np.random.choice(
             list(range(num_strata)),
-            p=samples_per_segment_strata[segment_idx]/np.sum(samples_per_segment_strata[segment_idx])
+            p=samples_per_segment_stratum[segment_idx]/np.sum(samples_per_segment_stratum[segment_idx])
         )
         while len(strata_gt_streams[strata_to_sample]) == 0:
             strata_to_sample = (strata_to_sample + 1) % num_strata
 
         gt_sample = strata_gt_streams[strata_to_sample].pop()
         proxy_sample = strata_proxy_streams[strata_to_sample].pop()
-        pred_sample = strata_pred_streams[strata_to_sample].pop()
+        predicate_sample = strata_predicate_streams[strata_to_sample].pop()
 
         gt_stream.append(gt_sample)
         proxy_stream.append(proxy_sample)
-        pred_stream.append(pred_sample)
+        predicate_stream.append(predicate_sample)
     
-    return gt_stream, proxy_stream, pred_stream
+    return gt_stream, proxy_stream, predicate_stream
 
-def create_stream(num_shifts, num_strata, init_stds, init_means, init_pred_rates):
-    # compute which frames will have a shift
-    shift_frames = sorted(list(np.random.randint(low=1, high=MAX_FRAME - 1, size=num_shifts)))
 
-    # ensure that the same frame isn't sampled twice (by miniscule chance)
-    while len(shift_frames) != len(np.unique(shift_frames)):
-        shift_frames = sorted(list(np.random.randint(low=1, high=MAX_FRAME - 1, size=num_shifts)))
+def create_stream(num_shifts, vec_idx, num_strata):
+    # seed random generator
+    np.random.seed(12345 * num_shifts + vec_idx)
 
-    # compute samples per shift segment
-    samples_per_segment_strata = compute_samples_per_segment_strata(num_strata, shift_frames)
+    # sample the locations in the stream where the shifts will occur
+    shift_indices = sorted(list(np.random.choice(np.arange(MAX_FRAMES), size=num_shifts, replace=False)))
 
-    # initialize strata means, stds., and pred. rates
-    strata_means = init_means
-    strata_stds = init_stds
-    strata_pred_rates = init_pred_rates
+    # compute samples per stream
+    samples_per_segment_stratum = compute_samples_per_segment_stratum(shift_indices, num_strata)
+    
+    # compute initial parameters;
+    # - strata means are chosen uniformly at random from [0,3], [3,6], and [6,9]
+    # - strata stds. are chosen uniformly at random from [0,3]
+    # - strata predicate positivity rates are chosen uniformly at random from [0,1]
+    strata_means = [3*(strata_idx + np.random.uniform()) for strata_idx in range(num_strata)]
+    strata_stds = [3*np.random.uniform() for _ in range(num_strata)]
+    strata_ps = [np.random.uniform() for _ in range(num_strata)]
 
-    # construct stream
-    full_gt_stream, full_proxy_stream, full_pred_stream = [], [], []
-    for segment_idx in range(num_shifts + 1):
-        strata_gt_streams, strata_proxy_streams, strata_pred_streams = [], [], []
-
+    # compute groundtruth
+    full_gt_stream, full_proxy_stream, full_predicate_stream = [], [], []
+    for segment_idx in range(len(shift_indices) + 1):
+        strata_gt_streams, strata_proxy_streams, strata_predicate_streams = [], [], []
         for strata_idx in range(num_strata):
-            # compute groundtruth
+            # compute groundtruth values
             strata_gt_stream = np.random.normal(
                 loc=strata_means[strata_idx],
                 scale=strata_stds[strata_idx],
-                size=(1, int(samples_per_segment_strata[segment_idx][strata_idx])),
+                size=(1, int(samples_per_segment_stratum[segment_idx][strata_idx])),
             )
             strata_gt_streams.append(list(strata_gt_stream[0]))
 
-            # compute proxies
-            proxy_vals = list(strata_gt_stream[0])
-            strata_proxy_streams.append(proxy_vals)
+            # copy groundtruth --> proxy values; we will mix these with random noise after normalizing
+            strata_proxy_stream = strata_gt_stream
+            strata_proxy_streams.append(list(strata_proxy_stream[0]))
 
-            # compute predicates
-            predicates = np.random.binomial(
-                n=1,
-                p=strata_pred_rates[strata_idx],
-                size=int(samples_per_segment_strata[segment_idx][strata_idx]),
-            )
-            predicates = list(map(lambda p : bool(p), predicates))
-            strata_pred_streams.append(predicates)
+            # compute predicate values
+            strata_predicate_stream = np.random.binomial(1, strata_ps[strata_idx], size=(1, int(samples_per_segment_stratum[segment_idx][strata_idx])))
+            strata_predicate_streams.append(list(strata_predicate_stream[0]))
 
-        segment_gt_stream, segment_proxy_stream, segment_pred_stream = interleave(strata_gt_streams, strata_proxy_streams, strata_pred_streams, segment_idx, samples_per_segment_strata, num_strata)
-        
+        # interleave samples from each strata
+        segment_gt_stream, segment_proxy_stream, segment_predicate_stream = interleave(strata_gt_streams, strata_proxy_streams, strata_predicate_streams, segment_idx, samples_per_segment_stratum, num_strata)
+
+        # add stream of samples for segment to full dataset stream
         full_gt_stream.extend(segment_gt_stream)
         full_proxy_stream.extend(segment_proxy_stream)
-        full_pred_stream.extend(segment_pred_stream)
+        full_predicate_stream.extend(segment_predicate_stream)
+        
+        # sample new parameters
+        strata_means = [3*(strata_idx + np.random.uniform()) for strata_idx in range(num_strata)]
+        strata_stds = [np.random.uniform() for _ in range(num_strata)]
+        strata_ps = [np.random.uniform() for _ in range(num_strata)]
 
-        # compute new strata means, stds., and pred. rates
-        strata_stds = sample_stds(ndim=num_strata)
-        strata_means = sample_means(ndim=num_strata)
-        strata_pred_rates = sample_pred_rates(ndim=num_strata)
-    
+    # normalize proxy values
     full_proxy_stream = full_proxy_stream - np.min(full_proxy_stream)
     full_proxy_stream = full_proxy_stream / np.max(full_proxy_stream)
-    
-    return full_gt_stream, full_proxy_stream, full_pred_stream
+
+    # add random noise to proxy values
+    full_proxy_stream = BETA * full_proxy_stream + (1.0 - BETA) * np.random.uniform(0, 1, len(full_proxy_stream))
+
+    return full_gt_stream, full_proxy_stream, full_predicate_stream
 
 
 if __name__ == "__main__":
+    # construct synthetic datasets
+    for num_shifts in range(1, 6):
+        for vec_idx in range(20):
+            print(f"----- num_shifts: {num_shifts} -- vec: {vec_idx} ------")
+            gt_stream, proxy_stream, predicate_stream = create_stream(num_shifts, vec_idx, NUM_STRATA)
 
-    for num_shifts in NUM_SHIFTS_LIST:
-        for idx in range(DATASETS_PER_SHIFT):
-            print(f"NUM_SHIFTS: {num_shifts} -- DATASET: {idx}")
-            # sample initial strata stds., means, pred. rates
-            random_state = num_shifts * DATASETS_PER_SHIFT + idx
-            np.random.seed(random_state)
-
-            init_stds = sample_stds(ndim=NUM_STRATA)
-            init_means = sample_means(ndim=NUM_STRATA)
-            init_pred_rates = sample_pred_rates(ndim=NUM_STRATA)
-
-            gt_stream, proxy_stream, pred_stream = create_stream(num_shifts, NUM_STRATA, init_stds, init_means, init_pred_rates)
-
-            pd.DataFrame({"car_count": gt_stream, "predicate": pred_stream}).to_csv(f"datasets/final-synthetic/true_num_shifts_{num_shifts}_vec_{idx}.csv", index=False, header=False)
-            pd.DataFrame({"proxy": proxy_stream}).to_csv(f"datasets/final-synthetic/prob_num_shifts_{num_shifts}_vec_{idx}.csv", index=False, header=False)
+            pd.DataFrame({"obj_count": gt_stream, "predicate": pred_stream}).to_csv(f"datasets/final-synthetic/true_num_shifts_{num_shifts}_vec_{vec_idx}.csv", index=False, header=False)
+            pd.DataFrame({"proxy": proxy_stream}).to_csv(f"datasets/final-synthetic/prob_num_shifts_{num_shifts}_vec_{vec_idx}.csv", index=False, header=False)
