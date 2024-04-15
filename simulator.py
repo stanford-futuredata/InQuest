@@ -346,7 +346,8 @@ def simulator(config_filepath, results_dir, trials_per_oracle_limit, num_process
         pilot_sample_frac = config['sampling']['pilot_sample_frac']
         pilot_str = f"-pilot-sample-frac-{pilot_sample_frac}-pilot-query-frac-{pilot_query_frac}"
 
-    results_df.to_csv(f"{os.path.join(results_dir, f'results-{config['sampling']['strategy']}-{predicate}-{dataset_name}{special}-alpha-{alpha}-segments-{num_segments}{pilot_str}.pq')}")
+    filename = f"results-{config['sampling']['strategy']}-{predicate}-{dataset_name}{special}-alpha-{alpha}-segments-{num_segments}{pilot_str}.pq"
+    results_df.to_csv(f"{os.path.join(results_dir, filename)}")
 
     # compute per-segment median rmse
     def compute_median_segment_error(row):
