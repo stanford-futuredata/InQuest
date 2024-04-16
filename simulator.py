@@ -255,9 +255,10 @@ def simulator(config_filepath, results_dir, trials_per_oracle_limit, num_process
     # only run with oracle limit == 5000 for certain analyses
     if single_budget:
         print("running with single budget set to True")
-        uniform_config['query']['oracle_limit'] = [5000]
-        static_config['query']['oracle_limit'] = [5000]
-        inquest_config['query']['oracle_limit'] = [5000]
+        config['query']['oracle_limit'] = [5000]
+        # uniform_config['query']['oracle_limit'] = [5000]
+        # static_config['query']['oracle_limit'] = [5000]
+        # inquest_config['query']['oracle_limit'] = [5000]
 
     # override alpha, num segments, and trials per oracle limit if necessary
     if alpha is not None:
@@ -270,9 +271,9 @@ def simulator(config_filepath, results_dir, trials_per_oracle_limit, num_process
     if beta is not None:
         config['proxy']['beta'] = int(beta)
 
-        proxy_filename = proxy_filename.replace('-blazeit-prob', f'-{int(beta)}-prob').replace('-fasttext-prob', f'-{int(beta)}-prob')
-        oracle_filepath = f"datasets/final-precomputed-proxy-degraded/{oracle_filename}"
-        proxy_filepath = f"datasets/final-precomputed-proxy-degraded/{proxy_filename}"
+        # proxy_filename = proxy_filename.replace('-blazeit-prob', f'-{int(beta)}-prob').replace('-fasttext-prob', f'-{int(beta)}-prob')
+        # oracle_filepath = f"datasets/final-precomputed-proxy-degraded/{oracle_filename}"
+        # proxy_filepath = f"datasets/final-precomputed-proxy-degraded/{proxy_filename}"
 
     if trials_per_oracle_limit is not None and trials_per_oracle_limit > 0:
         config['trials_per_oracle_limit'] = trials_per_oracle_limit
@@ -329,6 +330,7 @@ def simulator(config_filepath, results_dir, trials_per_oracle_limit, num_process
 
     # save results locally
     os.makedirs(results_dir, exist_ok=True)
+    ts = str(datetime.now().timestamp())
     write_json(config, ts, local=True, results_dir=results_dir)
 
     predicate = "predicate_gt0" if config['query']['predicate'] != "" else "no_predicate"
@@ -346,7 +348,7 @@ def simulator(config_filepath, results_dir, trials_per_oracle_limit, num_process
         pilot_sample_frac = config['sampling']['pilot_sample_frac']
         pilot_str = f"-pilot-sample-frac-{pilot_sample_frac}-pilot-query-frac-{pilot_query_frac}"
 
-    filename = f"results-{config['sampling']['strategy']}-{predicate}-{dataset_name}{special}-alpha-{alpha}-segments-{num_segments}{pilot_str}.pq"
+    filename = f"results-{config['sampling']['strategy']}-{predicate}-{special}-alpha-{alpha}-segments-{num_segments}{pilot_str}.pq"
     results_df.to_csv(f"{os.path.join(results_dir, filename)}")
 
     # compute per-segment median rmse
