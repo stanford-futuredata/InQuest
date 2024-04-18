@@ -358,7 +358,7 @@ def simulator(config_filepath, results_dir, trials_per_oracle_limit, num_process
 
         return np.median([row[f'rmse_segment_{segment_idx}'] for segment_idx in range(num_segments)])
 
-    results['median_rmse'] = results_df.compute_median_segment_error(lambda row: compute_median_segment_error, axis=1)
+    results_df['median_rmse'] = results_df.apply(lambda row: compute_median_segment_error(row), axis=1)
 
     # print out mean of per-segment median rmse's at each oracle limit
     for oracle_limit in config['query']['oracle_limit']:

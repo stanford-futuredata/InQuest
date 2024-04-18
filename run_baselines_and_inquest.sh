@@ -31,7 +31,7 @@ for dataset in customer-support archie11 jackson17 taipei13 venice20 rialto20
 do
     echo "------ Running baselines + InQuest on dataset ${dataset} ------"
     echo "--- ${dataset} uniform ---"
-    python simulator.py configs/final-uniform-configs/${dataset}-uniform-no-predicate-mean.json --trials-per-oracle-limit ${TRIALS_PER_ORACLE_LIMIT} --num-processes ${NUM_PROCESSES} --results-dir results-uniform-${dataset}-no-pred
+    python simulator.py configs/final-uniform-configs/${dataset}-uniform-no-predicate-mean.json --trials-per-oracle-limit ${TRIALS_PER_ORACLE_LIMIT} --num-processes ${NUM_PROCESSES} --segments 5 --results-dir results-uniform-${dataset}-no-pred
     echo "--- ${dataset} static ---"
     python simulator.py configs/final-static-configs/${dataset}-static-no-predicate-mean.json --trials-per-oracle-limit ${TRIALS_PER_ORACLE_LIMIT} --num-processes ${NUM_PROCESSES} --segments 5 --results-dir results-static-${dataset}-no-pred
     echo "--- ${dataset} InQuest ---"
@@ -43,7 +43,7 @@ for dataset in customer-support archie11 jackson17 taipei13 venice20 rialto20
 do
     echo "------ Running baselines + InQuest on dataset ${dataset} ------"
     echo "--- ${dataset} uniform ---"
-    python simulator.py configs/final-uniform-configs/${dataset}-uniform-predicate-gt0-mean.json --trials-per-oracle-limit ${TRIALS_PER_ORACLE_LIMIT} --num-processes ${NUM_PROCESSES} --results-dir results-uniform-${dataset}-pred-gt0
+    python simulator.py configs/final-uniform-configs/${dataset}-uniform-predicate-gt0-mean.json --trials-per-oracle-limit ${TRIALS_PER_ORACLE_LIMIT} --num-processes ${NUM_PROCESSES} --segments 5 --results-dir results-uniform-${dataset}-pred-gt0
     echo "--- ${dataset} static ---"
     python simulator.py configs/final-static-configs/${dataset}-static-predicate-gt0-mean.json --trials-per-oracle-limit ${TRIALS_PER_ORACLE_LIMIT} --num-processes ${NUM_PROCESSES} --segments 5 --results-dir results-static-${dataset}-pred-gt0
     echo "--- ${dataset} InQuest ---"
