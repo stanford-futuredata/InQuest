@@ -6,10 +6,11 @@ For this walkthrough we will use a `c5.24xlarge` EC2 instance running an Ubuntu 
 
 Once you've acquired an instance from EC2 (or if you are running on a local UNIX machine) you may run the following steps to set up your environment:
 ```
-# install python3.8
+# install python >= 3.8
+# you could replace the 3.8 in the commands below with e.g. 3.10
 sudo apt update
 sudo add-apt-repository ppa:deadsnakes/ppa -y
-sudo apt install -y python3.8 python3.8-venv libpython3.8-dev
+sudo apt install -y python3.8 python3.8-venv libpython3.8-dev wget build-essential r-base
 
 # create and activate a virtualenv
 python3.8 -m venv venv
@@ -25,7 +26,6 @@ cd InQuest
 pip install -r requirements.txt
 
 # install additional dependencies
-apt install -y wget build-essential r-base
 wget https://cloud.r-project.org/src/contrib/stratification_2.2-7.tar.gz
 R CMD INSTALL stratification_2.2-7.tar.gz
 rm stratification_2.2-7.tar.gz
